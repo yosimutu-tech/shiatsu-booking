@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>指圧治療院 予約</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@300;400;600&family=Zen+Kaku+Gothic+New:wght@300;400;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Zen Kaku Gothic New', sans-serif; background: linear-gradient(160deg, #f0ede8 0%, #e8f0e8 100%); min-height: 100vh; }
+    button { cursor: pointer; font-family: inherit; }
+    input, textarea { font-family: inherit; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState } = React;
+
+    const DAYS_JA = ["日","月","火","水","木","金","土"];
+    const MONTHS_JA = ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
+
+    function generateSlots() {
+      const slots = {};
+      const today = new Date();
+      for (let d = 0; d < 28; d++) {
+        const date = new Date(today);
+        date.setDate(today.getDate() + d);
+        if (date.getDay() === 0) continue;
+        const dateStr = date.toISOString().split("T")[0];
+        slots[dateStr] = [
+          { time: "10:00", status: "open", clientName: "", clientPhone: "", clientNote: "" },
+          { time: "11:30", status: "open", clientName: "", clientPhone: "", clientNote: "" },
+          { time: "13:00", status: "open", clientName: "", clientPhone: "", clientNote: "" },
+          { time: "14:30", status: "open", clientName: "", clientPhone: "", clientNote: "" },
+          { time: "16:00", status: "open", clientName: "", clientPhone: "", clientNote: "" },
+        ];
+      }
+      const keys = Object.keys(slots);
+      if (keys[2]) slots[keys[2]][1] = { time: "11:30", status: "booked", clientName: "山田 太郎", clientPhone: "090-1111-2222", clientNote: "肩こりがひどい" };
+      if (keys[4]) slots[keys[4]][3] = { time: "14:30", status: "booked", clientName: "鈴木 美子", clientPhone: "080-3333-4444", clientNote: "" };
+      return slots;
+    }
+
+    function formatDate(str) {
+      if (!str) return "";
+      const d = new Date(str);
+      return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${DAYS_JA[d.getDay()]}）`;
+    }
+
+    function Modal({ children, onClose }) {
+      return (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",zIndex:100,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={onClose}>
+          <div style={{background:"#faf7f2",borderRadius:"20px 20px 0 0",width:"100%",maxWidth:480,padding:"24px 20px 36px",maxHeight:"85vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+            {children}
+          </div>
+        </div>
+      );
+    }
+
+    function Calendar({ calDays, calMonth, setCalMonth, selectedDate, setSelectedDate, slots, mode }) {
+      const todayStr = new Date().toISOString().split("T")[0];
+      return (
+        <div style={{background:"rgba(255,255,255,0.85)",borderRadius:16,padding:16,boxShadow:"0 2px 16px rgba(0,0,0,0.07)",marginBottom:16}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+            <button style={{border:"none",background:"transparent",fontSize:22,color:"#7a9e7e",padding:"0 8px"}} onClick={()=>setCalMonth(m=>{const d=new Date(m.year,m.month-1,1);return{year:d.getFullYear(),month:d.getMonth()};})}>‹</button>
+            <span style={{fontFamily:"'Noto Serif JP',serif",fontSize:16,fontWeight:600,color:"#3d5c3d"}}>{calMonth.year}年 {MONTHS_JA[calMonth.month]}</span>
+            <button style={{border:"none",background:"transparent",fontSize:22,color:"#7a9e7e",padding:"0 8px"}} onClick={()=>setCalMonth(m=>{const d=new Date(m.year,m.month+1,1);return{year:d.getFullYear(),month:d.getMonth()};})}>›</button>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",marginBottom:4}}>
+            {["日","月","火","水","木","金","土"].map((d,i)=>(
+              <div key={d} style={{textAlign:"center",fontSize:11,padding:"4px 0",fontWeight:700,color:i===0?"#c0756a":i===6?"#6a90c0":"#7a6e6a"}}>{d}</div>
+            ))}
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
+            {calDays.map((day,i)=>{
+              if(!day) return <div key={i}/>;
+              const ds = day.toISOString().split("T")[0];
+              const isPast = ds < todayStr;
+              const isSelected = ds === selectedDate;
+              const isToday = ds === todayStr;
+              const daySlots = slots[ds] || [];
+              const openCount = daySlots.filter(s=>s.status==="open").length;
+              const bookedCount = daySlots.filter(s=>s.status==="booked").length;
+              const isSun = day.getDay()===0, isSat = day.getDay()===6;
+              return (
+                <button key={i} onClick={()=>!isPast&&setSelectedDate(ds)} disabled={isPast}
+                  style={{border:"none",background:isSelected?"#7a9e7e":isToday?"#e8f5e8":"transparent",borderRadius:10,padding:"6px 2px",display:"flex",flexDirection:"column",alignItems:"center",minHeight:48,opacity:isPast?0.35:1,color:isSelected?"#fff":isSun?"#c0756a":isSat?"#6a90c0":"#3d3530"}}>
+                  <span style={{fontSize:13,fontWeight:500,lineHeight:1.4}}>{day.getDate()}</span>
+                  {!isPast && (
+                    <span style={{display:"flex",gap:2,marginTop:3}}>
+                      {mode==="client" ? Array(Math.min(openCount,3)).fill(0).map((_,j)=><span key={j} style={{width:5,height:5,borderRadius:"50%",background:isSelected?"rgba(255,255,255,0.8)":"#7a9e7e",display:"inline-block"}}/>)
+                        : <>
+                            {openCount>0&&<span style={{width:5,height:5,borderRadius:"50%",background:isSelected?"rgba(255,255,255,0.8)":"#7a9e7e",display:"inline-block"}}/>}
+                            {bookedCount>0&&<span style={{width:5,height:5,borderRadius:"50%",background:isSelected?"rgba(255,255,255,0.8)":"#c0756a",display:"inline-block"}}/>}
+                          </>
+                      }
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          <div style={{fontSize:11,color:"#7a6e6a",marginTop:10,display:"flex",gap:4,alignItems:"center"}}>
+            <span style={{width:5,height:5,borderRadius:"50%",background:"#7a9e7e",display:"inline-block",marginRight:4}}/>空き枠あり
+            {mode==="practitioner"&&<span style={{marginLeft:12,display:"flex",alignItems:"center",gap:4}}><span style={{width:5,height:5,borderRadius:"50%",background:"#c0756a",display:"inline-block"}}/>予約済み</span>}
+          </div>
+        </div>
+      );
+    }
+
+    function App() {
+      const [mode, setMode] = useState("client");
+      const [slots, setSlots] = useState(generateSlots);
+      const [selectedDate, setSelectedDate] = useState(null);
+      const [calMonth, setCalMonth] = useState(()=>{const t=new Date();return{year:t.getFullYear(),month:t.getMonth()};});
+      const [modal, setModal] = useState(null);
+      const [form, setForm] = useState({name:"",phone:"",note:""});
+      const [clientView, setClientView] = useState("calendar");
+      const [praView, setPraView] = useState("calendar");
+      const [toast, setToast] = useState("");
+
+      function showToast(msg) { setToast(msg); setTimeout(()=>setToast(""),2500); }
+
+      function buildCalendar(year, month) {
+        const first = new Date(year,month,1);
+        const last = new Date(year,month+1,0);
+        const days = [];
+        for(let i=0;i<first.getDay();i++) days.push(null);
+        for(let d=1;d<=last.getDate();d++) days.push(new Date(year,month,d));
+        return days;
+      }
+
+      function handleBook() {
+        if(!form.name.trim()||!form.phone.trim()) return;
+        const {date,slotIdx} = modal;
+        setSlots(prev=>{
+          const updated={...prev};
+          updated[date]=prev[date].map((s,i)=>i===slotIdx?{...s,status:"booked",clientName:form.name,clientPhone:form.phone,clientNote:form.note}:s);
+          return updated;
+        });
+        setModal(null); setForm({name:"",phone:"",note:""});
+        showToast("✅ 予約が完了しました！");
+      }
+
+      function handleCancel() {
+        const {date,slotIdx} = modal;
+        setSlots(prev=>{
+          const updated={...prev};
+          updated[date]=prev[date].map((s,i)=>i===slotIdx?{...s,status:"open",clientName:"",clientPhone:"",clientNote:""}:s);
+          return updated;
+        });
+        setModal(null); showToast("キャンセルしました");
+      }
+
+      const MY_NAME = "山田 太郎";
+      const myBookings = Object.entries(slots).flatMap(([date,arr])=>arr.map((s,i)=>({date,slotIdx:i,...s}))).filter(s=>s.status==="booked"&&s.clientName===MY_NAME);
+      const allBookings = Object.entries(slots).flatMap(([date,arr])=>arr.map((s,i)=>({date,slotIdx:i,...s}))).filter(s=>s.status==="booked").sort((a,b)=>a.date.localeCompare(b.date));
+      const calDays = buildCalendar(calMonth.year, calMonth.month);
+
+      const S = {
+        badge:{display:"inline-block",background:"#c0756a",color:"#fff",borderRadius:10,fontSize:10,padding:"1px 6px",marginLeft:6},
+        tab:{flex:1,border:"none",background:"transparent",padding:"13px 8px",fontSize:13,color:"#7a6e6a",position:"relative"},
+        tabActive:{color:"#3d5c3d",fontWeight:700,borderBottom:"2px solid #7a9e7e"},
+        bookingCard:{background:"rgba(255,255,255,0.85)",borderRadius:14,padding:16,marginBottom:12,boxShadow:"0 2px 10px rgba(0,0,0,0.06)"},
+        primaryBtn:{width:"100%",border:"none",background:"#7a9e7e",color:"#fff",borderRadius:12,padding:14,fontSize:15,fontWeight:700,marginTop:8},
+        ghostBtn:{width:"100%",border:"1px solid #d5cfc8",background:"transparent",color:"#7a6e6a",borderRadius:12,padding:12,fontSize:14,marginTop:10},
+        input:{width:"100%",border:"1px solid #d5cfc8",borderRadius:10,padding:"11px 14px",fontSize:14,background:"#fff",outline:"none"},
+        label:{display:"block",fontSize:12,color:"#6b5e58",fontWeight:700,marginBottom:6},
+      };
+
+      return (
+        <div>
+          <header style={{background:"rgba(255,255,255,0.85)",backdropFilter:"blur(10px)",borderBottom:"1px solid #ddd8d0",position:"sticky",top:0,zIndex:10}}>
+            <div style={{maxWidth:480,margin:"0 auto",padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div>
+                <div style={{fontFamily:"'Noto Serif JP',serif",fontSize:17,fontWeight:600,color:"#3d5c3d",letterSpacing:1}}>🌿 指圧治療院</div>
+                <div style={{fontSize:10,color:"#7a9e7e",letterSpacing:2,marginTop:2}}>Shiatsu Treatment</div>
+              </div>
+              <div style={{display:"flex",background:"#e8e4de",borderRadius:20,padding:3,gap:2}}>
+                <button style={{border:"none",borderRadius:16,padding:"5px 12px",fontSize:12,transition:"all 0.2s",...(mode==="client"?{background:"#fff",color:"#3d5c3d",fontWeight:700,boxShadow:"0 1px 4px rgba(0,0,0,0.12)"}:{background:"transparent",color:"#7a6e6a"})}} onClick={()=>{setMode("client");setSelectedDate(null);setClientView("calendar");}}>👤 お客様</button>
+                <button style={{border:"none",borderRadius:16,padding:"5px 12px",fontSize:12,transition:"all 0.2s",...(mode==="practitioner"?{background:"#fff",color:"#3d5c3d",fontWeight:700,boxShadow:"0 1px 4px rgba(0,0,0,0.12)"}:{background:"transparent",color:"#7a6e6a"})}} onClick={()=>{setMode("practitioner");setSelectedDate(null);setPraView("calendar");}}>🌿 施術者</button>
+              </div>
+            </div>
+          </header>
+
+          <main style={{maxWidth:480,margin:"0 auto",paddingBottom:40}}>
+            {mode==="client" && (
+              <div>
+                <div style={{display:"flex",background:"rgba(255,255,255,0.6)",borderBottom:"1px solid #ddd8d0"}}>
+                  <button style={{...S.tab,...(clientView==="calendar"?S.tabActive:{})}} onClick={()=>setClientView("calendar")}>📅 予約する</button>
+                  <button style={{...S.tab,...(clientView==="myBookings"?S.tabActive:{})}} onClick={()=>setClientView("myBookings")}>
+                    📋 予約確認{myBookings.length>0&&<span style={S.badge}>{myBookings.length}</span>}
+                  </button>
+                </div>
+                {clientView==="calendar" && (
+                  <div style={{padding:16}}>
+                    <Calendar calDays={calDays} calMonth={calMonth} setCalMonth={setCalMonth} selectedDate={selectedDate} setSelectedDate={setSelectedDate} slots={slots} mode="client"/>
+                    {selectedDate && slots[selectedDate] && (
+                      <div style={{background:"rgba(255,255,255,0.85)",borderRadius:16,padding:16,boxShadow:"0 2px 16px rgba(0,0,0,0.07)"}}>
+                        <div style={{fontSize:14,fontWeight:700,color:"#3d5c3d",marginBottom:12,fontFamily:"'Noto Serif JP',serif"}}>{formatDate(selectedDate)} の施術枠</div>
+                        {slots[selectedDate].map((slot,i)=>(
+                          <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"11px 0",borderBottom:"1px solid #ede8e0"}}>
+                            <div style={{fontSize:16,fontWeight:700,color:"#3d3530",minWidth:50}}>{slot.time}</div>
+                            <div style={{fontSize:11,borderRadius:8,padding:"3px 10px",fontWeight:600,...(slot.status==="open"?{background:"#e8f5e8",color:"#3d7a3d"}:{background:"#f5e8e8",color:"#7a3d3d"})}}>{slot.status==="open"?"空き":"予約済"}</div>
+                            {slot.status==="open" && <button style={{marginLeft:"auto",border:"none",background:"#7a9e7e",color:"#fff",borderRadius:10,padding:"7px 14px",fontSize:12,fontWeight:700}} onClick={()=>setModal({date:selectedDate,slotIdx:i,type:"book"})}>予約する</button>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {selectedDate && !slots[selectedDate] && <div style={{textAlign:"center",color:"#9a8e88",padding:"32px 16px",fontSize:14}}>この日は受付していません</div>}
+                    {!selectedDate && <div style={{textAlign:"center",color:"#9a8e88",padding:"32px 16px",fontSize:14}}>カレンダーから日付を選んでください</div>}
+                  </div>
+                )}
+                {clientView==="myBookings" && (
+                  <div style={{padding:16}}>
+                    <h2 style={{fontSize:16,fontWeight:700,color:"#3d5c3d",marginBottom:14,fontFamily:"'Noto Serif JP',serif"}}>📋 予約一覧</h2>
+                    {myBookings.length===0 ? <div style={{textAlign:"center",color:"#9a8e88",padding:"32px 16px",fontSize:14}}>現在の予約はありません</div>
+                      : myBookings.map((b,i)=>(
+                        <div key={i} style={S.bookingCard}>
+                          <div style={{fontSize:15,fontWeight:700,color:"#3d5c3d",fontFamily:"'Noto Serif JP',serif",marginBottom:4}}>{formatDate(b.date)}</div>
+                          <div style={{fontSize:14,color:"#3d3530",marginBottom:4}}>🕐 {b.time}</div>
+                          {b.clientNote&&<div style={{fontSize:12,color:"#8a7e78",marginBottom:8}}>メモ: {b.clientNote}</div>}
+                          <button style={{border:"1px solid #c0756a",background:"transparent",color:"#c0756a",borderRadius:8,padding:"6px 16px",fontSize:12,marginTop:8}} onClick={()=>setModal({date:b.date,slotIdx:b.slotIdx,type:"cancel"})}>キャンセルする</button>
+                        </div>
+                      ))
+                    }
+                  </div>
+                )}
+              </div>
+            )}
+
+            {mode==="practitioner" && (
+              <div>
+                <div style={{display:"flex",background:"rgba(255,255,255,0.6)",borderBottom:"1px solid #ddd8d0"}}>
+                  <button style={{...S.tab,...(praView==="calendar"?S.tabActive:{})}} onClick={()=>setPraView("calendar")}>📅 スケジュール管理</button>
+                  <button style={{...S.tab,...(praView==="allBookings"?S.tabActive:{})}} onClick={()=>setPraView("allBookings")}>
+                    📋 予約一覧{allBookings.length>0&&<span style={S.badge}>{allBookings.length}</span>}
+                  </button>
+                </div>
+                {praView==="calendar" && (
+                  <div style={{padding:16}}>
+                    <Calendar calDays={calDays} calMonth={calMonth} setCalMonth={setCalMonth} selectedDate={selectedDate} setSelectedDate={setSelectedDate} slots={slots} mode="practitioner"/>
+                    {selectedDate ? (
+                      <div style={{background:"rgba(255,255,255,0.85)",borderRadius:16,padding:16,boxShadow:"0 2px 16px rgba(0,0,0,0.07)"}}>
+                        <div style={{fontSize:14,fontWeight:700,color:"#3d5c3d",marginBottom:12,fontFamily:"'Noto Serif JP',serif"}}>{formatDate(selectedDate)} の施術枠</div>
+                        {(slots[selectedDate]||[]).map((slot,i)=>(
+                          <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"11px 0",borderBottom:"1px solid #ede8e0"}}>
+                            <div style={{fontSize:16,fontWeight:700,color:"#3d3530",minWidth:50}}>{slot.time}</div>
+                            <div style={{fontSize:11,borderRadius:8,padding:"3px 10px",fontWeight:600,...(slot.status==="open"?{background:"#e8f5e8",color:"#3d7a3d"}:{background:"#f5e8e8",color:"#7a3d3d"})}}>{slot.status==="open"?"空き":slot.clientName}</div>
+                            <div style={{marginLeft:"auto",display:"flex",gap:8}}>
+                              {slot.status==="booked"&&<button style={{border:"none",background:"#e8d5d0",color:"#7a4040",borderRadius:10,padding:"7px 14px",fontSize:12,fontWeight:700}} onClick={()=>setModal({date:selectedDate,slotIdx:i,type:"detail"})}>詳細</button>}
+                              {slot.status==="open"&&<button style={{border:"none",background:"#f0e8e8",color:"#9a6060",borderRadius:10,padding:"7px 14px",fontSize:11}} onClick={()=>{
+                                if(window.confirm("この枠を削除しますか？")){
+                                  setSlots(prev=>{const u={...prev};u[selectedDate]=prev[selectedDate].filter((_,j)=>j!==i);return u;});
+                                }
+                              }}>削除</button>}
+                            </div>
+                          </div>
+                        ))}
+                        <button style={{width:"100%",border:"1px dashed #7a9e7e",background:"transparent",color:"#7a9e7e",borderRadius:10,padding:10,fontSize:13,marginTop:12}} onClick={()=>{
+                          const time=window.prompt("追加する時間を入力（例: 09:00）");
+                          if(!time||!/^\d{2}:\d{2}$/.test(time))return;
+                          setSlots(prev=>{const u={...prev};const day=[...(prev[selectedDate]||[]),{time,status:"open",clientName:"",clientPhone:"",clientNote:""}];day.sort((a,b)=>a.time.localeCompare(b.time));u[selectedDate]=day;return u;});
+                        }}>＋ 枠を追加</button>
+                      </div>
+                    ) : <div style={{textAlign:"center",color:"#9a8e88",padding:"32px 16px",fontSize:14}}>カレンダーから日付を選んでください</div>}
+                  </div>
+                )}
+                {praView==="allBookings" && (
+                  <div style={{padding:16}}>
+                    <h2 style={{fontSize:16,fontWeight:700,color:"#3d5c3d",marginBottom:14,fontFamily:"'Noto Serif JP',serif"}}>📋 全予約一覧</h2>
+                    {allBookings.length===0 ? <div style={{textAlign:"center",color:"#9a8e88",padding:"32px 16px",fontSize:14}}>予約はまだありません</div>
+                      : allBookings.map((b,i)=>(
+                        <div key={i} style={S.bookingCard}>
+                          <div style={{fontSize:15,fontWeight:700,color:"#3d5c3d",fontFamily:"'Noto Serif JP',serif",marginBottom:4}}>{formatDate(b.date)}</div>
+                          <div style={{fontSize:14,color:"#3d3530",marginBottom:4}}>🕐 {b.time}</div>
+                          <div style={{fontSize:13,color:"#6b5e58",marginBottom:4}}>👤 {b.clientName}　📞 {b.clientPhone}</div>
+                          {b.clientNote&&<div style={{fontSize:12,color:"#8a7e78",marginBottom:8}}>📝 {b.clientNote}</div>}
+                          <button style={{border:"1px solid #c0756a",background:"transparent",color:"#c0756a",borderRadius:8,padding:"6px 16px",fontSize:12,marginTop:8}} onClick={()=>setModal({date:b.date,slotIdx:b.slotIdx,type:"cancel"})}>キャンセル</button>
+                        </div>
+                      ))
+                    }
+                  </div>
+                )}
+              </div>
+            )}
+          </main>
+
+          {modal?.type==="book" && (
+            <Modal onClose={()=>setModal(null)}>
+              <div style={{fontFamily:"'Noto Serif JP',serif",fontSize:18,fontWeight:600,color:"#3d5c3d",marginBottom:6}}>🌿 ご予約</div>
+              <div style={{fontSize:13,color:"#7a6e6a",marginBottom:20}}>{formatDate(modal.date)}　{slots[modal.date]?.[modal.slotIdx]?.time}</div>
+              <div style={{marginBottom:16}}><label style={S.label}>お名前 *</label><input style={S.input} value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="例：山田 太郎"/></div>
+              <div style={{marginBottom:16}}><label style={S.label}>電話番号 *</label><input style={S.input} value={form.phone} onChange={e=>setForm(f=>({...f,phone:e.target.value}))} placeholder="例：090-1111-2222"/></div>
+              <div style={{marginBottom:16}}><label style={S.label}>お悩み・メモ（任意）</label><textarea style={{...S.input,height:72,resize:"none"}} value={form.note} onChange={e=>setForm(f=>({...f,note:e.target.value}))} placeholder="気になる箇所など"/></div>
+              <button style={{...S.primaryBtn,opacity:(!form.name||!form.phone)?0.5:1}} onClick={handleBook} disabled={!form.name||!form.phone}>予約を確定する</button>
+              <button style={S.ghostBtn} onClick={()=>setModal(null)}>もどる</button>
+            </Modal>
+          )}
+
+          {modal?.type==="cancel" && (
+            <Modal onClose={()=>setModal(null)}>
+              <div style={{fontFamily:"'Noto Serif JP',serif",fontSize:18,fontWeight:600,color:"#3d5c3d",marginBottom:6}}>⚠️ キャンセル確認</div>
+              <div style={{fontSize:13,color:"#7a6e6a",marginBottom:16}}>{formatDate(modal.date)}　{slots[modal.date]?.[modal.slotIdx]?.time}</div>
+              <p style={{color:"#6b5e58",fontSize:14,marginBottom:16,lineHeight:1.7}}>この予約をキャンセルしてよろしいですか？</p>
+              <button style={{...S.primaryBtn,background:"#c0756a"}} onClick={handleCancel}>キャンセルする</button>
+              <button style={S.ghostBtn} onClick={()=>setModal(null)}>もどる</button>
+            </Modal>
+          )}
+
+          {modal?.type==="detail" && (()=>{
+            const s=slots[modal.date]?.[modal.slotIdx];
+            return (
+              <Modal onClose={()=>setModal(null)}>
+                <div style={{fontFamily:"'Noto Serif JP',serif",fontSize:18,fontWeight:600,color:"#3d5c3d",marginBottom:6}}>📋 予約詳細</div>
+                <div style={{fontSize:13,color:"#7a6e6a",marginBottom:16}}>{formatDate(modal.date)}　{s?.time}</div>
+                {[["お名前",s?.clientName],["電話番号",s?.clientPhone],s?.clientNote&&["メモ",s.clientNote]].filter(Boolean).map(([k,v])=>(
+                  <div key={k} style={{display:"flex",gap:12,padding:"10px 0",borderBottom:"1px solid #ede8e0",fontSize:14}}>
+                    <span style={{color:"#7a6e6a",minWidth:70,fontWeight:600}}>{k}</span><span>{v}</span>
+                  </div>
+                ))}
+                <button style={{...S.primaryBtn,background:"#c0756a",marginTop:16}} onClick={()=>setModal({...modal,type:"cancel"})}>キャンセルする</button>
+                <button style={S.ghostBtn} onClick={()=>setModal(null)}>閉じる</button>
+              </Modal>
+            );
+          })()}
+
+          {toast && <div style={{position:"fixed",bottom:30,left:"50%",transform:"translateX(-50%)",background:"#3d5c3d",color:"#fff",borderRadius:20,padding:"11px 24px",fontSize:14,fontWeight:600,zIndex:200,boxShadow:"0 4px 16px rgba(0,0,0,0.2)",whiteSpace:"nowrap"}}>{toast}</div>}
+        </div>
+      );
+    }
+
+    ReactDOM.render(<App/>, document.getElementById("root"));
+  </script>
+
+</body>
+</html>

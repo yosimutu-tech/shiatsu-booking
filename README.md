@@ -1,1 +1,1 @@
-# shiatsu-booking
+指圧治療院の予約アプリです。
